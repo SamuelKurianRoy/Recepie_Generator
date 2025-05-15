@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Recipes - Recipe Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .recipe-card {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .category-section {
+            margin-bottom: 40px;
+        }
+        .category-title {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .ingredient-list, .instruction-list {
+            list-style-position: inside;
+            padding-left: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-5">All Available Recipes</h1>
+        <div class="row">
+            <div class="col-12">
+                {% for category, recipe_list in recipes.items() %}
+                <div class="category-section">
+                    <h2 class="category-title">{{ category|title }} Recipes</h2>
+                    {% for recipe in recipe_list %}
+                    <div class="recipe-card">
+                        <h3 class="mb-4">{{ recipe.name }}</h3>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <p><strong>Cooking Time:</strong> {{ recipe.cooking_time }}</p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Difficulty:</strong> {{ recipe.difficulty }}</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4>Ingredients</h4>
+                                <ul class="ingredient-list">
+                                    {% for ingredient in recipe.ingredients %}
+                                    <li>{{ ingredient }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h4>Instructions</h4>
+                                <ol class="instruction-list">
+                                    {% for instruction in recipe.instructions %}
+                                    <li>{{ instruction }}</li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="text-center mb-5">
+            <a href="/" class="btn btn-primary">Back to Generator</a>
+        </div>
+    </div>
+</body>
+</html> 

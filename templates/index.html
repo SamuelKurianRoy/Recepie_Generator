@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .recipe-card {
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .hero-section {
+            background-color: #e9ecef;
+            padding: 60px 0;
+            margin-bottom: 40px;
+        }
+        .btn-generate {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .btn-generate:hover {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+        .ingredient-list, .instruction-list {
+            list-style-position: inside;
+            padding-left: 0;
+        }
+        .match-percentage {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .matched-ingredients {
+            color: #0d6efd;
+        }
+        .tab-content {
+            margin-top: 20px;
+        }
+        .recipe-image {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .recipe-image-placeholder {
+            width: 100%;
+            height: 300px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-section">
+        <div class="container text-center">
+            <h1 class="display-4">Recipe Generator</h1>
+            <p class="lead">Find recipes by name, ingredients, or browse by category!</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <ul class="nav nav-tabs" id="recipeTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dish-name-tab" data-bs-toggle="tab" data-bs-target="#dish-name" type="button" role="tab">Search by Name</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ingredients-tab" data-bs-toggle="tab" data-bs-target="#ingredients" type="button" role="tab">Search by Ingredients</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="category-tab" data-bs-toggle="tab" data-bs-target="#category" type="button" role="tab">Browse by Category</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="recipeTabsContent">
+                    <div class="tab-pane fade show active" id="dish-name" role="tabpanel">
+                        <div class="text-center mb-4">
+                            <div class="form-group mb-3">
+                                <label for="dishNameInput" class="form-label">Enter dish name</label>
+                                <input type="text" class="form-control" id="dishNameInput" placeholder="e.g., Spaghetti Carbonara">
+                            </div>
+                            <button onclick="findRecipesByName()" class="btn btn-generate">Search Recipes</button>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="ingredients" role="tabpanel">
+                        <div class="text-center mb-4">
+                            <div class="form-group mb-3">
+                                <label for="ingredientInput" class="form-label">Enter your ingredients (separated by commas)</label>
+                                <input type="text" class="form-control" id="ingredientInput" placeholder="e.g., chicken, rice, tomatoes">
+                            </div>
+                            <button onclick="findRecipesByIngredients()" class="btn btn-generate">Find Recipes</button>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="category" role="tabpanel">
+                        <div class="text-center mb-4">
+                            <select id="categorySelect" class="form-select mb-3">
+                                {% for category in categories %}
+                                <option value="{{ category }}">{{ category|title }}</option>
+                                {% endfor %}
+                            </select>
+                            <button onclick="generateRecipeByCategory()" class="btn btn-generate">Generate Recipe</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="recipes-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function findRecipesByName() {
+            const dishName = document.getElementById('dishNameInput').value;
+            if (!dishName.trim()) {
+                alert('Please enter a dish name');
+                return;
+            }
+
+            fetch('/generate_recipe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `dish_name=${encodeURIComponent(dishName)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('recipes-container');
+                container.innerHTML = '';
+
+                if (data.error) {
+                    container.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                    return;
+                }
+
+                if (data.type === 'name_match') {
+                    data.recipes.forEach(recipe => {
+                        container.innerHTML += createRecipeCard(recipe, false);
+                    });
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function findRecipesByIngredients() {
+            const ingredients = document.getElementById('ingredientInput').value;
+            if (!ingredients.trim()) {
+                alert('Please enter some ingredients');
+                return;
+            }
+
+            fetch('/generate_recipe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `ingredients=${encodeURIComponent(ingredients)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('recipes-container');
+                container.innerHTML = '';
+
+                if (data.error) {
+                    container.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                    return;
+                }
+
+                if (data.type === 'ingredient_match') {
+                    data.recipes.forEach(recipe => {
+                        container.innerHTML += createRecipeCard(recipe, true);
+                    });
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function generateRecipeByCategory() {
+            const category = document.getElementById('categorySelect').value;
+            fetch('/generate_recipe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `category=${category}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('recipes-container');
+                container.innerHTML = '';
+
+                if (data.error) {
+                    container.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                    return;
+                }
+
+                if (data.type === 'category_match') {
+                    container.innerHTML = createRecipeCard(data.recipe, false);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function createRecipeCard(recipe, showMatch) {
+            return `
+                <div class="recipe-card">
+                    ${recipe.image ? 
+                        `<img src="/food_image/${recipe.image}" alt="${recipe.name}" class="recipe-image">` :
+                        `<div class="recipe-image-placeholder">No image available</div>`
+                    }
+                    <h2 class="text-center mb-4">${recipe.name}</h2>
+                    
+                    ${showMatch ? `
+                    <div class="alert alert-success">
+                        <strong class="match-percentage">Match: ${recipe.match_percentage}%</strong><br>
+                        <small>Matched ingredients: <span class="matched-ingredients">${recipe.matched_ingredients.join(', ')}</span></small>
+                    </div>
+                    ` : ''}
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <p><strong>Cooking Time:</strong> ${recipe.cooking_time}</p>
+                        </div>
+                        <div class="col-6">
+                            <p><strong>Difficulty:</strong> ${recipe.difficulty}</p>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>Ingredients</h4>
+                            <ul class="ingredient-list">
+                                ${recipe.ingredients.map(ingredient => `<li>${ingredient}</li>`).join('')}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h4>Instructions</h4>
+                            <ol class="instruction-list">
+                                ${recipe.instructions.map(instruction => `<li>${instruction}</li>`).join('')}
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html> 
