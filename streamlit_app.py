@@ -15,12 +15,6 @@ from PIL import Image
 import io
 import numpy as np
 
-# Configure logging to show all messages
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-
 # Initialize NLTK first
 import nltk
 
@@ -34,7 +28,7 @@ def download_nltk_data():
         nltk.download('omw-1.4', quiet=True)
         return True
     except Exception as e:
-        st.error(f"Failed to download NLTK data: {str(e)}")
+        st.error("⚠️ Error initializing language processing. Basic search will still work.")
         return False
 
 # Only import NLTK components after downloading data
@@ -42,45 +36,17 @@ if download_nltk_data():
     from nltk.tokenize import word_tokenize
     from nltk.stem import WordNetLemmatizer
     from sklearn.metrics.pairwise import cosine_similarity
-else:
-    st.error("Failed to initialize NLTK. Some features may not work properly.")
 
-# Load the trained model
-@st.cache_resource
-def load_model(model_path):
-    try:
-        if not os.path.exists(model_path):
-            st.error(f"Model file not found at: {model_path}")
-            st.info("Please make sure to run train_model.py first to generate the model.")
-            return None
-            
-        with open(model_path, 'rb') as f:
-            model_data = pickle.load(f)
-            
-        # Validate model structure
-        required_keys = ['recipes_data', 'vectorizer', 'recipe_vectors']
-        missing_keys = [key for key in required_keys if key not in model_data]
-        if missing_keys:
-            st.error(f"Invalid model file. Missing required data: {', '.join(missing_keys)}")
-            return None
-            
-        # Log model statistics
-        logging.info(f"Loaded model with {len(model_data['recipes_data'])} recipes")
-        return model_data
-    except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
-        logging.exception("Detailed error while loading model:")
-        return None
-
-def preprocess_ingredient(ingredient, lemmatizer):
+def preprocess_ingredient(ingredient, lemmatizer=None):
     """Clean and normalize ingredient text"""
     try:
-        ingredient = str(ingredient).lower().strip()
-        tokens = word_tokenize(ingredient)
-        tokens = [lemmatizer.lemmatize(token) for token in tokens if token.isalnum()]
-        return ' '.join(tokens)
-    except Exception as e:
-        logging.warning(f"Error processing ingredient '{ingredient}': {str(e)}")
+        if lemmatizer:
+            ingredient = str(ingredient).lower().strip()
+            tokens = word_tokenize(ingredient)
+            tokens = [lemmatizer.lemmatize(token) for token in tokens if token.isalnum()]
+            return ' '.join(tokens)
+        return ingredient.lower().strip()
+    except Exception:
         return ingredient.lower().strip()
 
 def search_by_name(query, model_data):
@@ -98,7 +64,7 @@ def search_by_name(query, model_data):
 def search_by_ingredients(ingredients, model_data, top_k=5):
     """Search recipes by ingredients"""
     try:
-        lemmatizer = WordNetLemmatizer()
+        lemmatizer = WordNetLemmatizer() if 'nltk.tokenize.punkt' in nltk.data.path else None
         processed_ingredients = [preprocess_ingredient(ing, lemmatizer) for ing in ingredients]
         
         # Create ingredient vector
@@ -119,8 +85,7 @@ def search_by_ingredients(ingredients, model_data, top_k=5):
                 matches.append((idx, recipe, score))
         
         return matches
-    except Exception as e:
-        logging.error(f"Error searching by ingredients: {str(e)}")
+    except Exception:
         return []
 
 def display_recipe(recipe, score=None):
@@ -144,9 +109,8 @@ def display_recipe(recipe, score=None):
                 image_bytes = base64.b64decode(recipe['image_data'])
                 image = Image.open(io.BytesIO(image_bytes))
                 st.image(image, caption=recipe['name'], use_container_width=True)
-            except Exception as e:
-                # Log error but don't show to user
-                logging.error(f"Failed to display image for {recipe['name']}: {str(e)}")
+            except Exception:
+                pass
 
 def main():
     st.title("🍳 Recipe Generator")
@@ -156,28 +120,11 @@ def main():
     model_path = "recipe_model.pkl"
     
     try:
-        if not os.path.exists(model_path):
-            st.error(f"Model file not found at: {model_path}")
-            st.info("Please make sure to run train_model.py first to generate the model.")
-            
-            # Add option to upload model file
-            uploaded_model = st.file_uploader("Upload recipe_model.pkl file", type=['pkl'])
-            if uploaded_model:
-                try:
-                    model_data = pickle.load(uploaded_model)
-                    st.success("Model loaded successfully from uploaded file!")
-                except Exception as e:
-                    st.error(f"Failed to load uploaded model: {str(e)}")
-                    return
-            else:
-                return
-        else:
-            with open(model_path, 'rb') as f:
-                model_data = pickle.load(f)
-    except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        logging.exception("Detailed error while loading model:")
-        return
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+    except Exception:
+        st.error("⚠️ Unable to load recipe data. Please try again later.")
+        st.stop()
     
     # Show model statistics in sidebar
     st.sidebar.title("📊 Recipe Stats")
