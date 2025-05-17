@@ -9,18 +9,38 @@ st.set_page_config(
 
 import pickle
 import os
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
-import nltk
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 import logging
 import base64
 from PIL import Image
 import io
+import numpy as np
 
-# Suppress all logging below ERROR level
+# Configure logging
 logging.getLogger().setLevel(logging.ERROR)
+
+# Initialize NLTK first
+import nltk
+
+# Download required NLTK data
+@st.cache_resource
+def download_nltk_data():
+    try:
+        nltk.download('punkt', quiet=True)
+        nltk.download('wordnet', quiet=True)
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+        nltk.download('omw-1.4', quiet=True)
+        return True
+    except Exception as e:
+        st.error(f"Failed to download NLTK data: {str(e)}")
+        return False
+
+# Only import NLTK components after downloading data
+if download_nltk_data():
+    from nltk.tokenize import word_tokenize
+    from nltk.stem import WordNetLemmatizer
+    from sklearn.metrics.pairwise import cosine_similarity
+else:
+    st.error("Failed to initialize NLTK. Some features may not work properly.")
 
 # Check image folder
 def check_image_folder():
@@ -39,16 +59,6 @@ def check_image_folder():
             st.sidebar.write(f"  • {img}")
     return True
 
-# Download required NLTK data
-@st.cache_resource
-def download_nltk_data():
-    nltk.download('punkt')
-    nltk.download('wordnet')
-    nltk.download('averaged_perceptron_tagger')
-    nltk.download('omw-1.4')
-
-download_nltk_data()
-
 # Load the trained model
 @st.cache_resource
 def load_model(model_path):
@@ -58,10 +68,14 @@ def load_model(model_path):
 
 def preprocess_ingredient(ingredient, lemmatizer):
     """Clean and normalize ingredient text"""
-    ingredient = str(ingredient).lower().strip()
-    tokens = word_tokenize(ingredient)
-    tokens = [lemmatizer.lemmatize(token) for token in tokens if token.isalnum()]
-    return ' '.join(tokens)
+    try:
+        ingredient = str(ingredient).lower().strip()
+        tokens = word_tokenize(ingredient)
+        tokens = [lemmatizer.lemmatize(token) for token in tokens if token.isalnum()]
+        return ' '.join(tokens)
+    except Exception as e:
+        st.warning(f"Error processing ingredient: {ingredient}")
+        return ingredient.lower().strip()
 
 def search_by_name(query, model_data):
     """Search recipes by name"""
@@ -77,27 +91,31 @@ def search_by_name(query, model_data):
 
 def search_by_ingredients(ingredients, model_data, top_k=5):
     """Search recipes by ingredients"""
-    lemmatizer = WordNetLemmatizer()
-    processed_ingredients = [preprocess_ingredient(ing, lemmatizer) for ing in ingredients]
-    
-    # Create ingredient vector
-    ingredients_text = ' '.join(processed_ingredients)
-    ingredient_vector = model_data['vectorizer'].transform([ingredients_text])
-    
-    # Calculate similarity scores
-    similarities = cosine_similarity(ingredient_vector, model_data['recipe_vectors']).flatten()
-    
-    # Get top matches
-    top_indices = np.argsort(similarities)[-top_k:][::-1]
-    matches = []
-    
-    for idx in top_indices:
-        recipe = model_data['recipes_data'][idx]
-        score = similarities[idx]
-        if score > 0:  # Only include matches with positive similarity
-            matches.append((idx, recipe, score))
-    
-    return matches
+    try:
+        lemmatizer = WordNetLemmatizer()
+        processed_ingredients = [preprocess_ingredient(ing, lemmatizer) for ing in ingredients]
+        
+        # Create ingredient vector
+        ingredients_text = ' '.join(processed_ingredients)
+        ingredient_vector = model_data['vectorizer'].transform([ingredients_text])
+        
+        # Calculate similarity scores
+        similarities = cosine_similarity(ingredient_vector, model_data['recipe_vectors']).flatten()
+        
+        # Get top matches
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        matches = []
+        
+        for idx in top_indices:
+            recipe = model_data['recipes_data'][idx]
+            score = similarities[idx]
+            if score > 0:  # Only include matches with positive similarity
+                matches.append((idx, recipe, score))
+        
+        return matches
+    except Exception as e:
+        st.error(f"Error searching by ingredients: {str(e)}")
+        return []
 
 def display_recipe(recipe, score=None):
     """Helper function to display a recipe with consistent formatting"""
