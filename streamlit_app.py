@@ -15,8 +15,9 @@ from PIL import Image
 import io
 import numpy as np
 
-# Configure logging
-logging.getLogger().setLevel(logging.ERROR)
+# Configure logging to show all messages
+logging.basicConfig(level=logging.INFO)
+st.set_option('deprecation.showfileUploaderEncoding', False)
 
 # Initialize NLTK first
 import nltk
@@ -46,11 +47,27 @@ else:
 @st.cache_resource
 def load_model(model_path):
     try:
+        if not os.path.exists(model_path):
+            st.error(f"Model file not found at: {model_path}")
+            st.info("Please make sure to run train_model.py first to generate the model.")
+            return None
+            
         with open(model_path, 'rb') as f:
             model_data = pickle.load(f)
+            
+        # Validate model structure
+        required_keys = ['recipes_data', 'vectorizer', 'recipe_vectors']
+        missing_keys = [key for key in required_keys if key not in model_data]
+        if missing_keys:
+            st.error(f"Invalid model file. Missing required data: {', '.join(missing_keys)}")
+            return None
+            
+        # Log model statistics
+        logging.info(f"Loaded model with {len(model_data['recipes_data'])} recipes")
         return model_data
     except Exception as e:
         st.error(f"Failed to load model: {str(e)}")
+        logging.exception("Detailed error while loading model:")
         return None
 
 def preprocess_ingredient(ingredient, lemmatizer):
@@ -135,13 +152,25 @@ def main():
     
     # Load the model
     model_path = "recipe_model.pkl"
-    if not os.path.exists(model_path):
-        st.error("Model file not found. Please run train_model.py first!")
-        return
-        
     model_data = load_model(model_path)
+    
     if model_data is None:
-        return
+        st.warning("⚠️ The recipe model could not be loaded. Please check if:")
+        st.write("1. You have run train_model.py to generate the model")
+        st.write("2. The recipe_model.pkl file exists in the same directory")
+        st.write("3. The model file contains all required data")
+        
+        # Add option to upload model file
+        uploaded_model = st.file_uploader("Upload recipe_model.pkl file", type=['pkl'])
+        if uploaded_model:
+            try:
+                model_data = pickle.load(uploaded_model)
+                st.success("Model loaded successfully from uploaded file!")
+            except Exception as e:
+                st.error(f"Failed to load uploaded model: {str(e)}")
+                return
+        else:
+            return
     
     # Show model statistics in sidebar
     st.sidebar.title("📊 Recipe Stats")
