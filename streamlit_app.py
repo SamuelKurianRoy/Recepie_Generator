@@ -42,29 +42,16 @@ if download_nltk_data():
 else:
     st.error("Failed to initialize NLTK. Some features may not work properly.")
 
-# Check image folder
-def check_image_folder():
-    image_folder = "Food Images"
-    if not os.path.exists(image_folder):
-        st.error(f"⚠️ Image folder '{image_folder}' not found! Please create this folder and add your recipe images.")
-        return False
-    
-    # List available images
-    available_images = set(os.listdir(image_folder))
-    st.sidebar.write("📁 Image Folder Status:")
-    st.sidebar.write(f"- Found {len(available_images)} images")
-    if len(available_images) > 0:
-        st.sidebar.write("- Sample image names:")
-        for img in list(available_images)[:3]:
-            st.sidebar.write(f"  • {img}")
-    return True
-
 # Load the trained model
 @st.cache_resource
 def load_model(model_path):
-    with open(model_path, 'rb') as f:
-        model_data = pickle.load(f)
-    return model_data
+    try:
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        return model_data
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        return None
 
 def preprocess_ingredient(ingredient, lemmatizer):
     """Clean and normalize ingredient text"""
@@ -138,16 +125,13 @@ def display_recipe(recipe, score=None):
                 image_bytes = base64.b64decode(recipe['image_data'])
                 image = Image.open(io.BytesIO(image_bytes))
                 st.image(image, caption=recipe['name'], use_container_width=True)
-            except Exception:
-                # Silently skip image display on error
-                pass
+            except Exception as e:
+                # Log error but don't show to user
+                logging.error(f"Failed to display image for {recipe['name']}: {str(e)}")
 
 def main():
     st.title("🍳 Recipe Generator")
     st.write("Find recipes by name or ingredients!")
-    
-    # Check image folder first
-    images_available = check_image_folder()
     
     # Load the model
     model_path = "recipe_model.pkl"
@@ -156,6 +140,8 @@ def main():
         return
         
     model_data = load_model(model_path)
+    if model_data is None:
+        return
     
     # Show model statistics in sidebar
     st.sidebar.title("📊 Recipe Stats")
